@@ -19,9 +19,20 @@ dependencies:
   rxjs:
     specifier: ^7.8.1
     version: 7.8.1
+  typescript:
+    specifier: ^5.1.3
+    version: 5.1.3
   webfontloader:
     specifier: ^1.6.28
     version: 1.6.28
+
+devDependencies:
+  '@types/rbush':
+    specifier: ^3.0.0
+    version: 3.0.0
+  '@types/webfontloader':
+    specifier: ^1.6.35
+    version: 1.6.35
 
 packages:
 
@@ -375,11 +386,19 @@ packages:
       '@types/node': 20.2.5
     dev: false
 
+  /@types/rbush@3.0.0:
+    resolution: {integrity: sha512-W3ue/GYWXBOpkRm0VSoifrP3HV0Ni47aVJWvXyWMcbtpBy/l/K/smBRiJ+fI8f7shXRjZBiux+iJzYbh7VmcZg==}
+    dev: true
+
   /@types/secp256k1@4.0.3:
     resolution: {integrity: sha512-Da66lEIFeIz9ltsdMZcpQvmrmmoqrfju8pm1BH8WbYjZSwUgCwXLb9C+9XYogwBITnbsSaMdVPb2ekf7TV+03w==}
     dependencies:
       '@types/node': 20.2.5
     dev: false
+
+  /@types/webfontloader@1.6.35:
+    resolution: {integrity: sha512-IJlrsiDWq6KghQ7tPlL5tcwSUyOxLDceT+AFUY7Ylj0Fcv3/h3QkANqQxZ0B5mEpEKxhTw76vDmvrruSMV9n9Q==}
+    dev: true
 
   /@use-gesture/core@10.2.27:
     resolution: {integrity: sha512-V4XV7hn9GAD2MYu8yBBVi5iuWBsAMfjPRMsEVzoTNGYH72tf0kFP+OKqGKc8YJFQIJx6yj+AOqxmEHOmx2/MEA==}
