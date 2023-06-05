@@ -1,0 +1,11 @@
+{
+	"dependencies": {
+		"@latticexyz/utils": "^1.43.0",
+		"@use-gesture/vanilla": "^10.2.27",
+		"mobx": "^6.9.0",
+		"phaser": "^3.60.0",
+		"rbush": "^3.0.1",
+		"rxjs": "^7.8.1",
+		"webfontloader": "^1.6.28"
+	}
+}
