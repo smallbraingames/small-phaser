@@ -1,3 +1,5 @@
+export * from "./types";
+export * from "./webFontFile";
 export * from "./createCamera";
 export * from "./createInput";
 export * from "./utils/createLazyGameObjectManager";

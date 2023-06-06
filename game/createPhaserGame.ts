@@ -1,12 +1,11 @@
 import Phaser from "phaser";
-import getGameLoadPromise from "./getGameLoadPromise";
-import resizePhaserGame from "./resizePhaserGame";
+import { getGameLoadPromise } from "./getGameLoadPromise";
 
-const createPhaserGame = async (config: Phaser.Types.Core.GameConfig) => {
+export const createPhaserGame = async (
+  config: Phaser.Types.Core.GameConfig
+) => {
   const game = new Phaser.Game(config);
   await getGameLoadPromise(game);
-
-  resizePhaserGame(game);
 
   const buildScenes: { [key: string]: Phaser.Scene } = {};
   game.scene.getScenes(false).forEach((scene) => {
@@ -21,5 +20,3 @@ const createPhaserGame = async (config: Phaser.Types.Core.GameConfig) => {
 
   return context;
 };
-
-export default createPhaserGame;

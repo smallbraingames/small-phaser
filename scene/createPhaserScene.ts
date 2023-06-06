@@ -1,4 +1,4 @@
-const createPhaserScene = (options: {
+export const createPhaserScene = (options: {
   key: string;
   preload?: (scene: Phaser.Scene) => void;
   create?: (scene: Phaser.Scene) => void;
@@ -23,5 +23,3 @@ const createPhaserScene = (options: {
     }
   };
 };
-
-export default createPhaserScene;

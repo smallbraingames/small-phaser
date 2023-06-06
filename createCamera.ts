@@ -11,11 +11,11 @@ import {
 } from "rxjs";
 import { EventTypes, Gesture, UserHandlers } from "@use-gesture/vanilla";
 
-type GestureState<T extends keyof UserHandlers<EventTypes>> = Parameters<
+export type GestureState<T extends keyof UserHandlers<EventTypes>> = Parameters<
   UserHandlers<EventTypes>[T]
 >[0];
 
-const createCamera = (
+export const createCamera = (
   phaserCamera: Phaser.Cameras.Scene2D.Camera,
   minZoom: number,
   maxZoom: number,
@@ -120,5 +120,3 @@ const createCamera = (
     setZoom,
   };
 };
-
-export default createCamera;

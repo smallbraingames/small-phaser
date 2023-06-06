@@ -1,4 +1,4 @@
-const resizePhaserGame = (game: Phaser.Game) => {
+export const resizePhaserGame = (game: Phaser.Game) => {
   const resize = () => {
     const width =
       (window.innerWidth * window.devicePixelRatio) / game.scale.zoom;
@@ -9,5 +9,3 @@ const resizePhaserGame = (game: Phaser.Game) => {
   resize();
   window.addEventListener("resize", resize);
 };
-
-export default resizePhaserGame;

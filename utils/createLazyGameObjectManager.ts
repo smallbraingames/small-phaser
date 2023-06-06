@@ -16,7 +16,7 @@ class PointRBush<T extends Coord> extends RBush<T> {
   }
 }
 
-const createLazyGameObjectManager = <
+export const createLazyGameObjectManager = <
   T extends Phaser.GameObjects.GameObject | Phaser.GameObjects.Group
 >(
   camera: Camera,
@@ -253,5 +253,3 @@ const createLazyGameObjectManager = <
     hasKey,
   };
 };
-
-export default createLazyGameObjectManager;

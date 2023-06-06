@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-const createTilemap = (
+export const createTilemap = (
   scene: Phaser.Scene,
   tileWidth: number,
   tileHeight: number,
@@ -14,5 +14,3 @@ const createTilemap = (
   });
   return tilemap;
 };
-
-export default createTilemap;
