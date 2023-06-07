@@ -251,5 +251,6 @@ export const createLazyGameObjectManager = <
     removeGameObject,
     getGameObject,
     hasKey,
+    refresh,
   };
 };
