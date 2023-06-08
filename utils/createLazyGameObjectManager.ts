@@ -21,6 +21,7 @@ export const createLazyGameObjectManager = <
 >(
   camera: Camera,
   createGameObject: (coord: Coord, key: string) => T,
+  buffer: number,
   tilemap?: { tileWidth: number; tileHeight: number }
 ) => {
   const {
@@ -177,10 +178,10 @@ export const createLazyGameObjectManager = <
 
   const render = (worldView: Phaser.Geom.Rectangle) => {
     const visibleCoords = gameObjectKeys.search({
-      minX: worldView.x,
-      minY: worldView.y,
-      maxX: worldView.x + worldView.width,
-      maxY: worldView.y + worldView.height,
+      minX: worldView.x - buffer,
+      minY: worldView.y - buffer,
+      maxX: worldView.x + worldView.width + buffer,
+      maxY: worldView.y + worldView.height + buffer,
     });
 
     const visibleCoordKeys = new Set(
@@ -235,8 +236,6 @@ export const createLazyGameObjectManager = <
   };
 
   const initialize = () => {
-    render(getTilemapWorldView(worldView));
-
     worldView$.subscribe((worldView) => {
       render(getTilemapWorldView(worldView));
     });
