@@ -76,7 +76,7 @@ export const createLazyGameObjectManager = <
     keys.add(key);
     if (initialized) {
       activeCoords.delete(coordKey);
-      render(worldView);
+      render(getTilemapWorldView(worldView));
     }
   };
 
@@ -96,7 +96,7 @@ export const createLazyGameObjectManager = <
     });
     gameObjects.delete(coordKey);
     activeCoords.delete(coordKey);
-    render(worldView);
+    render(getTilemapWorldView(worldView));
   };
 
   const removeGameObject = (coord: Coord, key: string) => {
@@ -115,7 +115,7 @@ export const createLazyGameObjectManager = <
       getKeysAtCoord(coord).delete(key);
     }
     activeCoords.delete(coordKey);
-    render(worldView);
+    render(getTilemapWorldView(worldView));
   };
 
   const hasKey = (coord: Coord, key: string): boolean => {
@@ -173,7 +173,7 @@ export const createLazyGameObjectManager = <
         gameObject.gameObject.destroy();
       });
     });
-    render(worldView);
+    render(getTilemapWorldView(worldView));
   };
 
   const render = (worldView: Phaser.Geom.Rectangle) => {
