@@ -1,11 +1,13 @@
 export const resizePhaserGame = (game: Phaser.Game) => {
   const resize = () => {
-    const width =
-      (window.innerWidth * window.devicePixelRatio) / game.scale.zoom;
-    const height =
-      (window.innerHeight * window.devicePixelRatio) / game.scale.zoom;
-    game.scale.resize(width, height);
+    let w = window.innerWidth * window.devicePixelRatio;
+    let h = window.innerHeight * window.devicePixelRatio;
+    game.scale.resize(w, h);
+    for (let scene of game.scene.scenes) {
+      if (scene.scene.settings.active) {
+        scene.cameras.main.setViewport(0, 0, w, h);
+      }
+    }
   };
-  resize();
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", resize.bind(this));
 };
