@@ -17,12 +17,13 @@ class PointRBush<T extends Coord> extends RBush<T> {
 }
 
 export const createLazyGameObjectManager = <
-  T extends Phaser.GameObjects.GameObject | Phaser.GameObjects.Group
+  T extends Phaser.GameObjects.GameObject
 >(
   camera: Camera,
   createGameObject: (coord: Coord, key: string) => T,
   buffer: number,
-  tilemap?: { tileWidth: number; tileHeight: number }
+  tilemap?: { tileWidth: number; tileHeight: number },
+  group?: Phaser.GameObjects.Group
 ) => {
   const {
     phaserCamera: { worldView },
@@ -92,11 +93,19 @@ export const createLazyGameObjectManager = <
       (a, b) => coordToKey(a) == coordToKey(b)
     );
     gameObjects.get(coordKey)?.forEach((gameObject) => {
-      gameObject.gameObject.destroy();
+      destroyGameObject(gameObject.gameObject);
     });
     gameObjects.delete(coordKey);
     activeCoords.delete(coordKey);
     render(getTilemapWorldView(worldView));
+  };
+
+  const destroyGameObject = (gameObject: T) => {
+    if (group) {
+      group.killAndHide(gameObject);
+      return;
+    }
+    gameObject.destroy();
   };
 
   const removeGameObject = (coord: Coord, key: string) => {
@@ -107,7 +116,7 @@ export const createLazyGameObjectManager = <
     }
     coordObjects.forEach((gameObject) => {
       if (gameObject.key == key) {
-        gameObject.gameObject.destroy();
+        destroyGameObject(gameObject.gameObject);
         coordObjects.delete(gameObject);
       }
     });
@@ -149,7 +158,7 @@ export const createLazyGameObjectManager = <
     // Delete previous game objects at key
     gameObjects
       .get(coordKey)
-      ?.forEach((gameObject) => gameObject.gameObject.destroy());
+      ?.forEach((gameObject) => destroyGameObject(gameObject.gameObject));
     gameObjects.delete(coordKey);
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -170,7 +179,7 @@ export const createLazyGameObjectManager = <
     activeCoords = new Set();
     [...gameObjects.entries()].forEach((value) => {
       value[1].forEach((gameObject) => {
-        gameObject.gameObject.destroy();
+        destroyGameObject(gameObject.gameObject);
       });
     });
     render(getTilemapWorldView(worldView));
@@ -199,7 +208,7 @@ export const createLazyGameObjectManager = <
     offscreenCoordKeys.forEach((key) => {
       gameObjects
         .get(key)
-        ?.forEach((gameObject) => gameObject.gameObject.destroy());
+        ?.forEach((gameObject) => destroyGameObject(gameObject.gameObject));
       gameObjects.delete(key);
     });
 
