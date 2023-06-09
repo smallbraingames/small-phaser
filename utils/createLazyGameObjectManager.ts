@@ -251,9 +251,14 @@ export const createLazyGameObjectManager = <
     initialized = true;
   };
 
+  const isInitialized = () => {
+    return initialized;
+  };
+
   return {
     addGameObject,
     initialize,
+    isInitialized,
     removeCoordGameObjects,
     removeAll,
     removeGameObject,
