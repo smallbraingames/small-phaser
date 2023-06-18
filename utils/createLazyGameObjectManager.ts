@@ -182,7 +182,7 @@ export const createLazyGameObjectManager = <
         destroyGameObject(gameObject.gameObject);
       });
     });
-    render(getTilemapWorldView(worldView));
+    render(getTilemapWorldView(worldView$.getValue()));
   };
 
   const render = (worldView: Phaser.Geom.Rectangle) => {
