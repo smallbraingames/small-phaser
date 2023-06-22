@@ -176,14 +176,13 @@ export const createLazyGameObjectManager = <
   };
 
   const refresh = () => {
-    console.log("[Lazy GameObject Manager] refreshing");
     activeCoords = new Set();
     [...gameObjects.entries()].forEach((value) => {
       value[1].forEach((gameObject) => {
         destroyGameObject(gameObject.gameObject);
       });
     });
-    render(getTilemapWorldView(worldView$.getValue()));
+    render(getTilemapWorldView(worldView));
   };
 
   const render = (worldView: Phaser.Geom.Rectangle) => {
