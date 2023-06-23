@@ -181,6 +181,7 @@ export const createLazyGameObjectManager = <
       value[1].forEach((gameObject) => {
         destroyGameObject(gameObject.gameObject);
       });
+      gameObjects.delete(value[0]);
     });
     render(getTilemapWorldView(worldView));
   };
