@@ -20,7 +20,8 @@ export const createCamera = (
   minZoom: number,
   maxZoom: number,
   pinchSpeed: number,
-  wheelSpeed: number
+  wheelSpeed: number,
+  dragSpeed: number = wheelSpeed
 ) => {
   // Stop default gesture events to not collide with use-gesture
   // https://github.com/pmndrs/use-gesture/blob/404e2b2ac145a45aff179c1faf5097b97414731c/documentation/pages/docs/gestures.mdx#about-the-pinch-gesture
@@ -33,12 +34,14 @@ export const createCamera = (
   const zoom$ = new BehaviorSubject<number>(phaserCamera.zoom);
   const wheelStream$ = new Subject<GestureState<"onWheel">>();
   const pinchStream$ = new Subject<GestureState<"onPinch">>();
+  const dragStream$ = new Subject<GestureState<"onDrag">>();
 
   const gesture = new Gesture(
     phaserCamera.scene.game.canvas,
     {
       onPinch: (state) => pinchStream$.next(state),
       onWheel: (state) => wheelStream$.next(state),
+      onDrag: (state) => dragStream$.next(state),
     },
     {}
   );
@@ -95,6 +98,24 @@ export const createCamera = (
       worldView$.next(phaserCamera.worldView);
     });
 
+  const dragSub = dragStream$
+    .pipe(
+      filter((state) => !state.pinching || !state.wheeling),
+      sampleTime(10),
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      map((state) => state.delta.map((x) => x * dragSpeed)),
+      map((movement) => movement.map((m: number) => m / phaserCamera.zoom)),
+      map((movement) => [
+        phaserCamera.scrollX - movement[0],
+        phaserCamera.scrollY - movement[1],
+      ])
+    )
+    .subscribe(([x, y]) => {
+      phaserCamera.setScroll(x, y);
+      worldView$.next(phaserCamera.worldView);
+    });
+
   function centerOn(x: number, y: number) {
     phaserCamera.centerOn(x, y);
     requestAnimationFrame(() => worldView$.next(phaserCamera.worldView));
@@ -112,6 +133,7 @@ export const createCamera = (
     dispose: () => {
       pinchSub.unsubscribe();
       wheelSub.unsubscribe();
+      dragSub.unsubscribe();
       gesture.destroy();
       phaserCamera.scene.scale.removeListener("resize", onResize);
     },
