@@ -57,6 +57,14 @@ export const createCamera = (
     zoom$.next(zoom);
   }
 
+  function zoomTo(zoom: number, duration: number = 200) {
+    const updateWorldView = () => worldView$.next(phaserCamera.worldView);
+    phaserCamera.zoomTo(zoom, duration, undefined, undefined, () => {
+      updateWorldView();
+    });
+    zoom$.next(zoom);
+  }
+
   const pinchSub = pinchStream$
     .pipe(
       throttleTime(10),
@@ -126,6 +134,14 @@ export const createCamera = (
     requestAnimationFrame(() => worldView$.next(phaserCamera.worldView));
   }
 
+  function pan(x: number, y: number, duration: number = 200) {
+    const updateWorldView = () => worldView$.next(phaserCamera.worldView);
+
+    phaserCamera.pan(x, y, duration, undefined, undefined, () => {
+      updateWorldView;
+    });
+  }
+
   return {
     phaserCamera,
     worldView$,
@@ -140,5 +156,7 @@ export const createCamera = (
     centerOn,
     setScroll,
     setZoom,
+    zoomTo,
+    pan,
   };
 };
