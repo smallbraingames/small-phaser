@@ -11,3 +11,5 @@ export * from "./scene/getSceneLoadPromise";
 export * from "./utils/pixelCoordToTileCoord";
 export * from "./game/resizePhaserGame";
 export * from "./utils/tileCoordToPixelCoord";
+export * from "./utils/awaitTween";
+export * from "./utils/removeTweens";
