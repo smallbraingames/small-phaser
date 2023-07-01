@@ -64,8 +64,7 @@ export const createLazyGameObjectManager = <
     );
   };
 
-  const addGameObject = (coord: Coord, key: string) => {
-    const coordKey = coordToKey(coord);
+  const _addGameObject = (coord: Coord, key: string) => {
     let keys: Set<string>;
     if (!hasKeysAtCoord(coord)) {
       keys = new Set();
@@ -75,9 +74,19 @@ export const createLazyGameObjectManager = <
       keys = getKeysAtCoord(coord)!;
     }
     keys.add(key);
+  };
+
+  const addGameObject = (coord: Coord, key: string) => {
+    _addGameObject(coord, key);
     if (initialized) {
-      activeCoords.delete(coordKey);
-      render(getTilemapWorldView(worldView));
+      refreshCoord(coord);
+    }
+  };
+
+  const addGameObjects = (objects: { coord: Coord; key: string }[]) => {
+    objects.forEach(({ coord, key }) => _addGameObject(coord, key));
+    if (initialized) {
+      objects.forEach(({ coord }) => refreshCoord(coord));
     }
   };
 
@@ -176,12 +185,22 @@ export const createLazyGameObjectManager = <
   };
 
   const refresh = () => {
+    // Delete all active coords and game objects, and refresh manager
     activeCoords = new Set();
     [...gameObjects.entries()].forEach((value) => {
       value[1].forEach((gameObject) => {
         destroyGameObject(gameObject.gameObject);
       });
       gameObjects.delete(value[0]);
+    });
+    render(getTilemapWorldView(worldView));
+  };
+
+  const refreshCoord = (coord: Coord) => {
+    const coordKey = coordToKey(coord);
+    activeCoords.delete(coordKey);
+    gameObjects.get(coordKey)?.forEach((gameObject) => {
+      destroyGameObject(gameObject.gameObject);
     });
     render(getTilemapWorldView(worldView));
   };
@@ -266,5 +285,6 @@ export const createLazyGameObjectManager = <
     getGameObject,
     hasKey,
     refresh,
+    addGameObjects,
   };
 };
