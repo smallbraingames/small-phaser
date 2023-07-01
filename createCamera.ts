@@ -58,9 +58,8 @@ export const createCamera = (
   }
 
   function zoomTo(zoom: number, duration: number = 200) {
-    const updateWorldView = () => worldView$.next(phaserCamera.worldView);
     phaserCamera.zoomTo(zoom, duration, undefined, undefined, () => {
-      updateWorldView();
+      worldView$.next(phaserCamera.worldView);
     });
     zoom$.next(zoom);
   }
@@ -135,10 +134,8 @@ export const createCamera = (
   }
 
   function pan(x: number, y: number, duration: number = 200) {
-    const updateWorldView = () => worldView$.next(phaserCamera.worldView);
-
     phaserCamera.pan(x, y, duration, undefined, undefined, () => {
-      updateWorldView;
+      worldView$.next(phaserCamera.worldView);
     });
   }
 
