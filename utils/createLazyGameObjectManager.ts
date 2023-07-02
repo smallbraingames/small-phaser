@@ -285,6 +285,7 @@ export const createLazyGameObjectManager = <
     getGameObject,
     hasKey,
     refresh,
+    refreshCoord,
     addGameObjects,
   };
 };
