@@ -3,6 +3,7 @@ import { Coord, coordToKey, keyToCoord } from "@latticexyz/utils";
 import { Camera } from "../types";
 import RBush from "rbush";
 import { pixelCoordToTileCoord } from "./pixelCoordToTileCoord";
+import { throttleTime } from "rxjs";
 
 class PointRBush<T extends Coord> extends RBush<T> {
   toBBox({ x, y }: Coord) {
@@ -23,7 +24,8 @@ export const createLazyGameObjectManager = <
   createGameObject: (coord: Coord, key: string) => T,
   buffer: number,
   tilemap?: { tileWidth: number; tileHeight: number },
-  group?: Phaser.GameObjects.Group
+  group?: Phaser.GameObjects.Group,
+  throttle: number = 0
 ) => {
   const {
     phaserCamera: { worldView },
@@ -212,7 +214,6 @@ export const createLazyGameObjectManager = <
       maxX: worldView.x + worldView.width + buffer,
       maxY: worldView.y + worldView.height + buffer,
     });
-
     const visibleCoordKeys = new Set(
       visibleCoords.map((coord) => coordToKey(coord))
     );
@@ -265,9 +266,13 @@ export const createLazyGameObjectManager = <
   };
 
   const initialize = () => {
-    worldView$.subscribe((worldView) => {
-      render(getTilemapWorldView(worldView));
-    });
+    worldView$
+      .pipe(
+        throttleTime(throttle, undefined, { leading: false, trailing: true })
+      )
+      .subscribe((worldView) => {
+        render(getTilemapWorldView(worldView));
+      });
     initialized = true;
   };
 
