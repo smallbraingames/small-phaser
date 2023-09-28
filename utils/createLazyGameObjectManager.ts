@@ -52,7 +52,7 @@ export const createLazyGameObjectManager = <
     if (keys.length > 0) {
       return keys[0].key;
     }
-    throw Error("No keys at coord");
+    throw Error("[Lazy Game Object Manager] No keys at coord");
   };
 
   const hasKeysAtCoord = (coord: Coord): boolean => {
@@ -208,12 +208,17 @@ export const createLazyGameObjectManager = <
   };
 
   const render = (worldView: Phaser.Geom.Rectangle) => {
+    if (!isInitialized()) {
+      console.warn("[Lazy Game Object Manager] Rendering before initialized");
+    }
+
     const visibleCoords = gameObjectKeys.search({
       minX: worldView.x - buffer,
       minY: worldView.y - buffer,
       maxX: worldView.x + worldView.width + buffer,
       maxY: worldView.y + worldView.height + buffer,
     });
+
     const visibleCoordKeys = new Set(
       visibleCoords.map((coord) => coordToKey(coord))
     );
@@ -241,6 +246,11 @@ export const createLazyGameObjectManager = <
   };
 
   const getTilemapWorldView = (worldView: Phaser.Geom.Rectangle) => {
+    const showLogs =
+      [...gameObjects.entries()].filter(
+        (x) => [...x[1]].filter((y) => y.key == "bonus").length > 0
+      ).length > 0;
+
     if (!tilemap) {
       return worldView;
     }
@@ -266,6 +276,10 @@ export const createLazyGameObjectManager = <
   };
 
   const initialize = () => {
+    if (isInitialized()) {
+      console.warn("[Lazy Game Object Manager] Already initialized");
+      return;
+    }
     worldView$
       .pipe(
         throttleTime(throttle, undefined, { leading: false, trailing: true })
