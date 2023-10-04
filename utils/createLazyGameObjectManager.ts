@@ -3,7 +3,9 @@ import { Coord, coordToKey, keyToCoord } from "@latticexyz/utils";
 import { Camera } from "../types";
 import RBush from "rbush";
 import { pixelCoordToTileCoord } from "./pixelCoordToTileCoord";
-import { throttleTime } from "rxjs";
+import { Observable, Subject, throttleTime } from "rxjs";
+
+const ENCODE_ARGS_SEPARATOR = ":";
 
 class PointRBush<T extends Coord> extends RBush<T> {
   toBBox({ x, y }: Coord) {
@@ -17,15 +19,42 @@ class PointRBush<T extends Coord> extends RBush<T> {
   }
 }
 
-export const createLazyGameObjectManager = <
-  T extends Phaser.GameObjects.GameObject
->(
+type GameObjectInfo = {
+  generatorKey: string;
+  gameObjectKey: string;
+};
+
+type GameObjectGenerator<T extends Phaser.GameObjects.GameObject> = (
+  coord: Coord,
+  group: Phaser.GameObjects.Group,
+  key: string
+) => T;
+
+const encodeInfo = (info: GameObjectInfo) => {
+  return `${info.generatorKey}${ENCODE_ARGS_SEPARATOR}${info.gameObjectKey}`;
+};
+
+const decodeInfo = (encodedArgs: string): GameObjectInfo => {
+  const [generatorKey, gameObjectKey] = encodedArgs.split(
+    ENCODE_ARGS_SEPARATOR
+  );
+  return { generatorKey, gameObjectKey };
+};
+
+type GameObject = {
+  gameObject: Phaser.GameObjects.GameObject;
+  info: GameObjectInfo;
+};
+
+export const createLazyGameObjectManager = (
   camera: Camera,
-  createGameObject: (coord: Coord, key: string) => T,
-  buffer: number,
-  tilemap?: { tileWidth: number; tileHeight: number },
-  group?: Phaser.GameObjects.Group,
-  throttle: number = 0
+  scene: Phaser.Scene,
+  tilemap: { tileWidth: number; tileHeight: number } = {
+    tileWidth: 1,
+    tileHeight: 1,
+  },
+  buffer: number = 0,
+  worldViewThrottle: number = 0
 ) => {
   const {
     phaserCamera: { worldView },
@@ -34,126 +63,181 @@ export const createLazyGameObjectManager = <
 
   let initialized = false;
   let activeCoords = new Set<number>();
-  const gameObjects = new Map<number, Set<{ gameObject: T; key: string }>>();
 
-  const gameObjectKeys = new PointRBush<{
+  const gameObjectGenerators = new Map<
+    string,
+    GameObjectGenerator<Phaser.GameObjects.GameObject>
+  >();
+  const generatorTypes = new Map<string, Function>();
+  const typeGroups = new Map<Function, Phaser.GameObjects.Group>();
+
+  const gameObjects = new Map<number, Set<GameObject>>();
+
+  const indexedEncodedInfo = new PointRBush<{
     x: number;
     y: number;
-    key: Set<string>;
+    infos: Set<string>;
   }>();
 
-  const getKeysAtCoord = (coord: Coord): Set<string> => {
-    const keys = gameObjectKeys.search({
+  const _getInfosAtCoord = (coord: Coord): Set<string> | undefined => {
+    const args = indexedEncodedInfo.search({
       minX: coord.x,
       minY: coord.y,
       maxX: coord.x,
       maxY: coord.y,
     });
-    if (keys.length > 0) {
-      return keys[0].key;
+    if (args.length > 0) {
+      return args[0].infos;
     }
-    throw Error("[Lazy Game Object Manager] No keys at coord");
+    return undefined;
   };
 
-  const hasKeysAtCoord = (coord: Coord): boolean => {
-    return (
-      gameObjectKeys.search({
-        minX: coord.x,
-        minY: coord.y,
-        maxX: coord.x,
-        maxY: coord.y,
-      }).length > 0
-    );
+  const registerGameObjectGenerator = <T extends Phaser.GameObjects.GameObject>(
+    generatorKey: string,
+    generator: GameObjectGenerator<T>,
+    classType: Function
+  ) => {
+    if (generatorKey.includes(ENCODE_ARGS_SEPARATOR)) {
+      throw Error(
+        `[Lazy Game Object Manager] Generator key cannot include ${ENCODE_ARGS_SEPARATOR}`
+      );
+    }
+    gameObjectGenerators.set(generatorKey, generator);
+    generatorTypes.set(generatorKey, classType);
+    const group = typeGroups.get(classType);
+    if (!group) {
+      typeGroups.set(classType, scene.add.group({ classType, maxSize: -1 }));
+    }
   };
 
-  const _addGameObject = (coord: Coord, key: string) => {
-    let keys: Set<string>;
-    if (!hasKeysAtCoord(coord)) {
-      keys = new Set();
-      gameObjectKeys.insert({ ...coord, key: keys });
+  const _getGameObjectGeneratorGroup = (
+    generatorKey: string
+  ): Phaser.GameObjects.Group => {
+    const typeName = generatorTypes.get(generatorKey);
+    const group = typeName && typeGroups.get(typeName);
+    if (!group) {
+      throw Error("[Lazy Game Object Manager] Generator group not found");
+    }
+    return group;
+  };
+
+  const addGameObject = (coord: Coord, info: GameObjectInfo) => {
+    let infos: Set<string>;
+    const coordInfos = _getInfosAtCoord(coord);
+    if (coordInfos !== undefined) {
+      infos = coordInfos;
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      keys = getKeysAtCoord(coord)!;
+      infos = new Set();
+      indexedEncodedInfo.insert({
+        x: coord.x,
+        y: coord.y,
+        infos: infos,
+      });
     }
-    keys.add(key);
-  };
-
-  const addGameObject = (coord: Coord, key: string) => {
-    _addGameObject(coord, key);
+    infos.add(encodeInfo(info));
     if (initialized) {
       refreshCoord(coord);
     }
   };
 
-  const addGameObjects = (objects: { coord: Coord; key: string }[]) => {
-    objects.forEach(({ coord, key }) => _addGameObject(coord, key));
+  const addGameObjects = (
+    objects: { coord: Coord; generatorArgs: GameObjectInfo }[]
+  ) => {
+    const coordInfos = new Map<number, Set<string>>();
+    const newEncodedInfos: { x: number; y: number; infos: Set<string> }[] = [];
+
+    for (const object of objects) {
+      const coordKey = coordToKey(object.coord);
+      const infos = coordInfos.get(coordKey);
+      if (infos) {
+        continue;
+      }
+      const indexedInfos = _getInfosAtCoord(object.coord);
+      if (indexedInfos) {
+        coordInfos.set(coordKey, indexedInfos);
+        continue;
+      }
+      const newInfos = new Set<string>();
+      coordInfos.set(coordKey, newInfos);
+      newEncodedInfos.push({
+        x: object.coord.x,
+        y: object.coord.y,
+        infos: newInfos,
+      });
+    }
+
+    indexedEncodedInfo.load(newEncodedInfos);
+
+    for (const object of objects) {
+      const coordKey = coordToKey(object.coord);
+      const args = coordInfos.get(coordKey);
+      if (!args) {
+        throw Error("[Lazy Game Object Manager] Generator args not found");
+      }
+      args.add(encodeInfo(object.generatorArgs));
+    }
+
     if (initialized) {
-      objects.forEach(({ coord }) => refreshCoord(coord));
+      _refreshCoords(objects.map((object) => object.coord));
     }
   };
 
+  const hasInfo = (coord: Coord, info: GameObjectInfo) => {
+    const coordInfos = _getInfosAtCoord(coord);
+    if (coordInfos === undefined) {
+      return false;
+    }
+    return coordInfos.has(encodeInfo(info));
+  };
+
   const removeAll = () => {
-    gameObjectKeys.clear();
+    indexedEncodedInfo.clear();
     refresh();
   };
 
   const removeCoordGameObjects = (coord: Coord) => {
     const coordKey = coordToKey(coord);
-    gameObjectKeys.remove(
-      { ...coord, key: new Set() },
+    indexedEncodedInfo.remove(
+      { ...coord, infos: new Set() },
       (a, b) => coordToKey(a) == coordToKey(b)
     );
-    gameObjects.get(coordKey)?.forEach((gameObject) => {
-      destroyGameObject(gameObject.gameObject);
-    });
-    gameObjects.delete(coordKey);
     activeCoords.delete(coordKey);
-    render(getTilemapWorldView(worldView));
+    render(worldView);
   };
 
-  const destroyGameObject = (gameObject: T) => {
-    if (group) {
-      group.killAndHide(gameObject);
-      return;
-    }
-    gameObject.destroy();
+  const _destroyGameObject = (gameObject: GameObject) => {
+    const group = _getGameObjectGeneratorGroup(gameObject.info.generatorKey);
+    group.killAndHide(gameObject.gameObject);
   };
 
-  const removeGameObject = (coord: Coord, key: string) => {
-    const coordKey = coordToKey(coord);
-    const coordObjects = gameObjects.get(coordKey);
-    if (!coordObjects) {
-      return;
+  const removeGameObjects = (
+    objects: { coord: Coord; generatorArgs: GameObjectInfo }[]
+  ) => {
+    for (const object of objects) {
+      _getInfosAtCoord(object.coord)?.delete(encodeInfo(object.generatorArgs));
     }
-    coordObjects.forEach((gameObject) => {
-      if (gameObject.key == key) {
-        destroyGameObject(gameObject.gameObject);
-        coordObjects.delete(gameObject);
-      }
-    });
-    if (hasKeysAtCoord(coord)) {
-      getKeysAtCoord(coord).delete(key);
-    }
-    activeCoords.delete(coordKey);
-    render(getTilemapWorldView(worldView));
+    _refreshCoords(objects.map((object) => object.coord));
   };
 
-  const hasKey = (coord: Coord, key: string): boolean => {
-    if (!hasKeysAtCoord(coord)) {
-      return false;
-    }
-    return getKeysAtCoord(coord).has(key);
+  const removeGameObject = (coord: Coord, generatorArgs: GameObjectInfo) => {
+    removeGameObjects([{ coord, generatorArgs }]);
   };
 
-  const getGameObject = (coord: Coord, key: string): T | undefined => {
+  const getGameObject = (
+    coord: Coord,
+    info: GameObjectInfo
+  ): GameObject | undefined => {
     const coordKey = coordToKey(coord);
     const coordObjects = gameObjects.get(coordKey);
     if (!coordObjects) {
       return;
     }
     for (const coordObject of coordObjects) {
-      if (coordObject.key == key) {
-        return coordObject.gameObject;
+      if (
+        coordObject.info.gameObjectKey == info.gameObjectKey &&
+        coordObject.info.generatorKey == info.generatorKey
+      ) {
+        return coordObject;
       }
     }
     return;
@@ -162,57 +246,76 @@ export const createLazyGameObjectManager = <
   const createCoordGameObjects = (coordKey: number) => {
     const coord = keyToCoord(coordKey);
 
-    if (!hasKeysAtCoord(coord)) {
+    // Delete previous game objects at coord
+    let gameObjectSet = gameObjects.get(coordKey);
+    gameObjectSet?.forEach((gameObject) => _destroyGameObject(gameObject));
+    gameObjectSet?.clear();
+
+    const infos = _getInfosAtCoord(coord);
+
+    if (infos === undefined || infos.size === 0) {
       return;
     }
 
-    // Delete previous game objects at key
-    gameObjects
-      .get(coordKey)
-      ?.forEach((gameObject) => destroyGameObject(gameObject.gameObject));
-    gameObjects.delete(coordKey);
-
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const keys = getKeysAtCoord(coord);
-    let gameObjectSet = gameObjects.get(coordKey);
-    if (!gameObjectSet) {
-      gameObjectSet = new Set<{ gameObject: T; key: string }>();
+    // Add new game objects
+    if (gameObjectSet === undefined) {
+      gameObjectSet = new Set<GameObject>();
+      gameObjects.set(coordKey, gameObjectSet);
     }
-    keys.forEach((key) => {
-      const gameObject = createGameObject(keyToCoord(coordKey), key);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      gameObjectSet!.add({ gameObject, key });
+    infos.forEach((encodedInfo) => {
+      const info = decodeInfo(encodedInfo);
+      const group = _getGameObjectGeneratorGroup(info.generatorKey);
+      const generator = gameObjectGenerators.get(info.generatorKey);
+      if (!generator) {
+        throw Error("[Lazy Game Object Manager] Generator not found");
+      }
+      const gameObject = generator(coord, group, info.gameObjectKey);
+      gameObjectSet!.add({ gameObject, info });
     });
-    gameObjects.set(coordKey, gameObjectSet);
   };
 
   const refresh = () => {
-    // Delete all active coords and game objects, and refresh manager
     activeCoords = new Set();
-    [...gameObjects.entries()].forEach((value) => {
-      value[1].forEach((gameObject) => {
-        destroyGameObject(gameObject.gameObject);
-      });
-      gameObjects.delete(value[0]);
-    });
-    render(getTilemapWorldView(worldView));
+    render(worldView);
+  };
+
+  const _refreshCoords = (coords: Coord[]) => {
+    if (coords.length === 0) {
+      return;
+    }
+    const overrideCoords = new Set<number>();
+    for (const coord of coords) {
+      const coordKey = coordToKey(coord);
+      activeCoords.delete(coordKey);
+      overrideCoords.add(coordKey);
+    }
+    renderCoords([...overrideCoords]);
   };
 
   const refreshCoord = (coord: Coord) => {
-    const coordKey = coordToKey(coord);
-    activeCoords.delete(coordKey);
-    gameObjects.get(coordKey)?.forEach((gameObject) => {
-      destroyGameObject(gameObject.gameObject);
-    });
-    render(getTilemapWorldView(worldView));
+    _refreshCoords([coord]);
   };
 
-  const render = (worldView: Phaser.Geom.Rectangle) => {
+  const renderCoords = (coords: number[]) => {
+    coords.forEach((key) => {
+      createCoordGameObjects(key);
+      activeCoords.add(key);
+    });
+  };
+
+  const render = (rawWorldView: Phaser.Geom.Rectangle) => {
+    console.log("rendering");
     if (!isInitialized()) {
-      console.warn("[Lazy Game Object Manager] Rendering before initialized");
+      console.warn(
+        "[Lazy Game Object Manager] Not rendering before initialized"
+      );
+      return;
     }
 
-    const visibleCoords = gameObjectKeys.search({
+    const worldView = getTilemapWorldView(rawWorldView);
+
+    // If override is provided, only render the coords, otherwise render the worldview
+    const visibleCoords = indexedEncodedInfo.search({
       minX: worldView.x - buffer,
       minY: worldView.y - buffer,
       maxX: worldView.x + worldView.width + buffer,
@@ -234,27 +337,15 @@ export const createLazyGameObjectManager = <
     offscreenCoordKeys.forEach((key) => {
       gameObjects
         .get(key)
-        ?.forEach((gameObject) => destroyGameObject(gameObject.gameObject));
+        ?.forEach((gameObject) => _destroyGameObject(gameObject));
       gameObjects.delete(key);
+      activeCoords.delete(key);
     });
 
-    newVisibleCoordKeys.forEach((key) => {
-      createCoordGameObjects(key);
-    });
-
-    activeCoords = new Set(visibleCoordKeys);
+    renderCoords(newVisibleCoordKeys);
   };
 
   const getTilemapWorldView = (worldView: Phaser.Geom.Rectangle) => {
-    const showLogs =
-      [...gameObjects.entries()].filter(
-        (x) => [...x[1]].filter((y) => y.key == "bonus").length > 0
-      ).length > 0;
-
-    if (!tilemap) {
-      return worldView;
-    }
-
     const tilemapCoord = pixelCoordToTileCoord(
       {
         x: worldView.x,
@@ -280,13 +371,10 @@ export const createLazyGameObjectManager = <
       console.warn("[Lazy Game Object Manager] Already initialized");
       return;
     }
-    worldView$
-      .pipe(
-        throttleTime(throttle, undefined, { leading: false, trailing: true })
-      )
-      .subscribe((worldView) => {
-        render(getTilemapWorldView(worldView));
-      });
+    worldView$.pipe(throttleTime(worldViewThrottle)).subscribe((worldView) => {
+      render(worldView);
+    });
+
     initialized = true;
   };
 
@@ -296,15 +384,15 @@ export const createLazyGameObjectManager = <
 
   return {
     addGameObject,
+    addGameObjects,
     initialize,
+    hasInfo,
     isInitialized,
-    removeCoordGameObjects,
-    removeAll,
+    registerGameObjectGenerator,
+    removeGameObjects,
     removeGameObject,
     getGameObject,
-    hasKey,
     refresh,
     refreshCoord,
-    addGameObjects,
   };
 };
