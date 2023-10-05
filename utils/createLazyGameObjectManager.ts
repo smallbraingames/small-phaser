@@ -11,6 +11,8 @@ type Coord = {
   y: number;
 };
 
+// Below two functions copied from @latticexyz/utils
+
 const LOWER_HALF_MASK = 2 ** 16 - 1;
 
 export function coordToKey(coord: Coord) {
@@ -128,6 +130,11 @@ export const createLazyGameObjectManager = (
     if (generatorKey.includes(ENCODE_ARGS_SEPARATOR)) {
       throw Error(
         `[Lazy Game Object Manager] Generator key cannot include ${ENCODE_ARGS_SEPARATOR}`
+      );
+    }
+    if (gameObjectGenerators.has(generatorKey)) {
+      console.warn(
+        `[Lazy Game Object Manager] Generator key ${generatorKey} already registered`
       );
     }
     gameObjectGenerators.set(generatorKey, generator);
