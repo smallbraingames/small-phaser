@@ -1,5 +1,6 @@
 import {
   Observable,
+  OperatorFunction,
   Subject,
   bufferCount,
   distinctUntilChanged,
@@ -8,6 +9,7 @@ import {
   map,
   merge,
   pairwise,
+  pipe,
   scan,
   throttleTime,
 } from "rxjs";
@@ -16,7 +18,12 @@ import { observable, reaction, runInAction } from "mobx";
 // DIRECTLY COPIED FROM LATTICEXYZ/PHASERX
 // https://github.com/latticexyz/mud/blob/main/packages/phaserx/src/createInput.ts
 import Phaser from "phaser";
-import { filterNullish } from "@latticexyz/utils";
+
+function filterNullish<T>(): OperatorFunction<T, NonNullable<T>> {
+  return pipe<Observable<T>, Observable<NonNullable<T>>>(
+    filter<T>((x: T) => x != null) as OperatorFunction<T, NonNullable<T>>
+  );
+}
 
 type Area = {
   x: number;

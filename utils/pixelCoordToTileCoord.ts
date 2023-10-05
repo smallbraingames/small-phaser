@@ -1,4 +1,7 @@
-import { Coord } from "@latticexyz/utils";
+type Coord = {
+  x: number;
+  y: number;
+};
 
 export const pixelCoordToTileCoord = (
   pixelCoord: Coord,

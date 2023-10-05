@@ -1,6 +1,6 @@
 {
   "name": "@smallbraingames/small-phaser",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -11,17 +11,16 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@latticexyz/utils": "^1.43.0",
     "@use-gesture/vanilla": "^10.2.27",
+    "d3-quadtree": "^3.0.1",
     "mobx": "^6.9.0",
     "phaser": "^3.60.0",
-    "rbush": "^3.0.1",
     "rxjs": "^7.8.1",
     "typescript": "^5.1.3",
     "webfontloader": "^1.6.28"
   },
   "devDependencies": {
-    "@types/rbush": "^3.0.0",
+    "@types/d3-quadtree": "^3.0.3",
     "@types/webfontloader": "^1.6.35"
   }
 }

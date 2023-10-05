@@ -1,22 +1,27 @@
-import { Coord, coordToKey, keyToCoord } from "@latticexyz/utils";
-
 import { Camera } from "../types";
-import RBush from "rbush";
+
 import { pixelCoordToTileCoord } from "./pixelCoordToTileCoord";
-import { Observable, Subject, throttleTime } from "rxjs";
+import { throttleTime } from "rxjs";
+import { Quadtree, QuadtreeLeaf, quadtree } from "d3-quadtree";
 
 const ENCODE_ARGS_SEPARATOR = ":";
 
-class PointRBush<T extends Coord> extends RBush<T> {
-  toBBox({ x, y }: Coord) {
-    return { minX: x, minY: y, maxX: x, maxY: y };
-  }
-  compareMinX(a: T, b: T) {
-    return a.x - b.x;
-  }
-  compareMinY(a: T, b: T) {
-    return a.y - b.y;
-  }
+type Coord = {
+  x: number;
+  y: number;
+};
+
+const LOWER_HALF_MASK = 2 ** 16 - 1;
+
+export function coordToKey(coord: Coord) {
+  const key = (coord.x << 16) | (coord.y & LOWER_HALF_MASK);
+  return key;
+}
+
+export function keyToCoord(key: number): Coord {
+  const x = key >> 16;
+  const y = (key << 16) >> 16;
+  return { x, y };
 }
 
 type GameObjectInfo = {
@@ -46,6 +51,33 @@ type GameObject = {
   info: GameObjectInfo;
 };
 
+const search = <T>(
+  quadtree: Quadtree<T>,
+  xmin: number,
+  ymin: number,
+  xmax: number,
+  ymax: number
+) => {
+  const results: T[] = [];
+  quadtree.visit((node, x1, y1, x2, y2) => {
+    const isLeaf = !node.length;
+    if (isLeaf) {
+      let currentNode: QuadtreeLeaf<T> | undefined = node as QuadtreeLeaf<T>;
+      do {
+        const d = currentNode!.data;
+        const x = quadtree.x()(d);
+        const y = quadtree.y()(d);
+        if (x >= xmin && x < xmax && y >= ymin && y < ymax) {
+          results.push(d);
+        }
+        currentNode = currentNode!.next;
+      } while (currentNode !== undefined);
+    }
+    return x1 >= xmax || y1 >= ymax || x2 < xmin || y2 < ymin;
+  });
+  return results;
+};
+
 export const createLazyGameObjectManager = (
   camera: Camera,
   scene: Phaser.Scene,
@@ -73,23 +105,19 @@ export const createLazyGameObjectManager = (
 
   const gameObjects = new Map<number, Set<GameObject>>();
 
-  const indexedEncodedInfo = new PointRBush<{
+  const indexedEncodedInfo = quadtree<{
     x: number;
     y: number;
     infos: Set<string>;
   }>();
 
+  indexedEncodedInfo.x((coord) => coord.x);
+  indexedEncodedInfo.y((coord) => coord.y);
+
+  const coordInfos = new Map<number, Set<string>>();
   const _getInfosAtCoord = (coord: Coord): Set<string> | undefined => {
-    const args = indexedEncodedInfo.search({
-      minX: coord.x,
-      minY: coord.y,
-      maxX: coord.x,
-      maxY: coord.y,
-    });
-    if (args.length > 0) {
-      return args[0].infos;
-    }
-    return undefined;
+    const coordKey = coordToKey(coord);
+    return coordInfos.get(coordKey);
   };
 
   const registerGameObjectGenerator = <T extends Phaser.GameObjects.GameObject>(
@@ -123,16 +151,17 @@ export const createLazyGameObjectManager = (
 
   const addGameObject = (coord: Coord, info: GameObjectInfo) => {
     let infos: Set<string>;
-    const coordInfos = _getInfosAtCoord(coord);
-    if (coordInfos !== undefined) {
-      infos = coordInfos;
+    const indexedInfos = _getInfosAtCoord(coord);
+    if (indexedInfos !== undefined) {
+      infos = indexedInfos;
     } else {
       infos = new Set();
-      indexedEncodedInfo.insert({
+      indexedEncodedInfo.add({
         x: coord.x,
         y: coord.y,
         infos: infos,
       });
+      coordInfos.set(coordToKey(coord), infos);
     }
     infos.add(encodeInfo(info));
     if (initialized) {
@@ -143,18 +172,12 @@ export const createLazyGameObjectManager = (
   const addGameObjects = (
     objects: { coord: Coord; generatorArgs: GameObjectInfo }[]
   ) => {
-    const coordInfos = new Map<number, Set<string>>();
     const newEncodedInfos: { x: number; y: number; infos: Set<string> }[] = [];
 
     for (const object of objects) {
       const coordKey = coordToKey(object.coord);
-      const infos = coordInfos.get(coordKey);
-      if (infos) {
-        continue;
-      }
       const indexedInfos = _getInfosAtCoord(object.coord);
       if (indexedInfos) {
-        coordInfos.set(coordKey, indexedInfos);
         continue;
       }
       const newInfos = new Set<string>();
@@ -166,7 +189,7 @@ export const createLazyGameObjectManager = (
       });
     }
 
-    indexedEncodedInfo.load(newEncodedInfos);
+    indexedEncodedInfo.addAll(newEncodedInfos);
 
     for (const object of objects) {
       const coordKey = coordToKey(object.coord);
@@ -188,21 +211,6 @@ export const createLazyGameObjectManager = (
       return false;
     }
     return coordInfos.has(encodeInfo(info));
-  };
-
-  const removeAll = () => {
-    indexedEncodedInfo.clear();
-    refresh();
-  };
-
-  const removeCoordGameObjects = (coord: Coord) => {
-    const coordKey = coordToKey(coord);
-    indexedEncodedInfo.remove(
-      { ...coord, infos: new Set() },
-      (a, b) => coordToKey(a) == coordToKey(b)
-    );
-    activeCoords.delete(coordKey);
-    render(worldView);
   };
 
   const _destroyGameObject = (gameObject: GameObject) => {
@@ -304,7 +312,6 @@ export const createLazyGameObjectManager = (
   };
 
   const render = (rawWorldView: Phaser.Geom.Rectangle) => {
-    console.log("rendering");
     if (!isInitialized()) {
       console.warn(
         "[Lazy Game Object Manager] Not rendering before initialized"
@@ -315,12 +322,13 @@ export const createLazyGameObjectManager = (
     const worldView = getTilemapWorldView(rawWorldView);
 
     // If override is provided, only render the coords, otherwise render the worldview
-    const visibleCoords = indexedEncodedInfo.search({
-      minX: worldView.x - buffer,
-      minY: worldView.y - buffer,
-      maxX: worldView.x + worldView.width + buffer,
-      maxY: worldView.y + worldView.height + buffer,
-    });
+    const visibleCoords = search(
+      indexedEncodedInfo,
+      worldView.x - buffer,
+      worldView.y - buffer,
+      worldView.x + worldView.width + buffer,
+      worldView.y + worldView.height + buffer
+    );
 
     const visibleCoordKeys = new Set(
       visibleCoords.map((coord) => coordToKey(coord))

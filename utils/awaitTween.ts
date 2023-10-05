@@ -1,6 +1,6 @@
 // Shamelessly stolen (and modified) from @latticexyz/phaserx (Love you all <3)
 
-import { deferred } from "@latticexyz/utils";
+import { deferred } from "./deferred";
 
 export const awaitTween = async (
   config: Phaser.Types.Tweens.TweenBuilderConfig

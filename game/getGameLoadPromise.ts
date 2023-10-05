@@ -1,4 +1,4 @@
-import { deferred } from "@latticexyz/utils";
+import { deferred } from "../utils/deferred";
 
 export const getGameLoadPromise = async (game: Phaser.Game) => {
   const [resolve, , promise] = deferred();
