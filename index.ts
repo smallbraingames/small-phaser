@@ -9,6 +9,7 @@ export * from "./createTilemap";
 export * from "./game/getGameLoadPromise";
 export * from "./scene/getSceneLoadPromise";
 export * from "./utils/pixelCoordToTileCoord";
+export * from "./utils/getCenterPixelCoord";
 export * from "./game/resizePhaserGame";
 export * from "./utils/tileCoordToPixelCoord";
 export * from "./utils/awaitTween";
