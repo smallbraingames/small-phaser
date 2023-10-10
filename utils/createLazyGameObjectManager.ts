@@ -1,7 +1,7 @@
 import { Camera } from "../types";
 
 import { pixelCoordToTileCoord } from "./pixelCoordToTileCoord";
-import { throttleTime } from "rxjs";
+import { Observable, throttleTime } from "rxjs";
 import { Quadtree, QuadtreeLeaf, quadtree } from "d3-quadtree";
 
 const ENCODE_ARGS_SEPARATOR = ":";
@@ -81,7 +81,10 @@ const search = <T>(
 };
 
 export const createLazyGameObjectManager = (
-  camera: Camera,
+  camera: {
+    phaserCamera: Phaser.Cameras.Scene2D.Camera;
+    worldView$: Observable<Phaser.Geom.Rectangle>;
+  },
   scene: Phaser.Scene,
   tilemap: { tileWidth: number; tileHeight: number } = {
     tileWidth: 1,
